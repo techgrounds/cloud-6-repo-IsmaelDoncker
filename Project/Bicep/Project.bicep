@@ -1,9 +1,14 @@
 param location string = resourceGroup().location
-param storageAccountName string
-param vaultName string = 'keyVault${uniqueString(resourceGroup().id)}'
-param sku string = 'Standard'
-param tenant string = '' // replace with your tenantId
-param accessPolicies array = [
+@minLength(3)
+@maxLength(24)
+param storageAccountName string = toLower('storacc${uniqueString(resourceGroup().id)}')
+@description('Blob encryption at Rest')
+param blobEncryptionEnabled bool = true
+/*param vaultName1 string = 'recovery${uniqueString(resourceGroup().id)}'*/
+/*param vaultName string = 'keyVault${uniqueString(resourceGroup().id)}'
+/*param sku string = 'Standard'
+/*param tenant string = 'de60b253-74bd-4365-b598-b9e55a2b208d' // replace with your tenantId
+/*param accessPolicies array = [
   {
     tenantId: tenant
     objectId: '' // replace with your objectId
@@ -55,18 +60,20 @@ param enabledForDeployment bool = true
 param enableRbacAuthorization bool = false
 param softDeleteRetentionInDays int = 90  // replace number # change number just a place holder !!!!
 
-param keyName string = 'prodKey'
+/*param keyName string = 'prodKey'
 @secure()
-param secretName string =''
+param secretName string ='' 
+
 @secure()
 param secretValue string = ''
+*/
 
-param networkAcls object = {
+/*param networkAcls object = {
   ipRules: []
   virtualNetworkRules: []
-}
+}*/
 
-@description('Change Vault Storage Type()')
+/*@description('Change Vault Storage Type()')
 @allowed([
   'LocallyRedundant'
   'GeoRedundant'
@@ -74,13 +81,13 @@ param networkAcls object = {
 param vaultStorageType string = 'GeoRedundant'
 
 @description('name of backup policy')
-param policyName string
+param policyName string = 'mypolicy${uniqueString(resourceGroup().id)}'
 
 @description('Number of days Instant Recovery Point should be retained')
 @allowed([
   7
 ])
-param instantRpRetentionRangeInDays int = 7
+param instantRpRetentionRangeInDays int = 7*/
 
 
 @description('The name of Management Server')
@@ -91,42 +98,45 @@ param adminUsername string
 @secure()
 param adminPassword string
 
-@description('')
-param dnsLabelPrefix string = toLower('${vmName}-${uniqueString(resourceGroup().id, vmName)}')
+@description('DNS Mangement S')
+param dnsLabelPrefix string = toLower('MS${vmName}-${uniqueString(resourceGroup().id, vmName)}') // check later 
 
-@description('')
+@description('Unique DNS Name for the Public IP used to access the Virtual Machine.')
+param dnsLabelPrefix1 string = toLower('simplelinuxvm-${uniqueString(resourceGroup().id)}')
+
+@description('WindowsIp')
 param publicIpName string = 'ManagementPublicIP'
 
 @description('linuxIP')
 param publicIpName1 string = 'AppPublicIP'
 
-@description('')
+@description('IP type')
 @allowed([
   'Static'
   'Dynamic'
 ])
-param publicIPAllocationMethod string = 'Static'
+param publicIPAllocationMethod string = 'Dynamic'
 
 @description('')
-param publicIpSku string = 'Standard'
+param publicIpSku string = 'Basic'
 
-@description('')
+@description('OS images')
 @allowed([
   '2019-Datacenter'
   '2022-Datacenter'
-  '20.04-LTS'
+  '20_04-lts-gen2'
 ])
 param OSVersion string = '2019-Datacenter'
-param ubuntuOSVersion string = '20.04-LTS'
+param ubuntuOSVersion string = '20_04-lts-gen2'
 
 @description('')
 param vmSize string = 'Standard_B2s'
 
 @description('The name of Management Server VM')
-param vmName string = 'Management Server'
+param vmName string = 'WinServer'
 
 @description('The name of you Web Server Virtual Machine.')
-param vmName1 string = 'Web Server'
+param vmName1 string = 'Web-Server'
 
 @description('Username for the Virtual Machine WebServer.')
 param adminUsername1 string
@@ -156,17 +166,17 @@ var vnet1Config = {
 
 var vnet2Config = {
   addressSpacePrefix: '10.20.20.0/24'
-  subnetName: 'subnet1'
+  subnetName1: 'subnet2'
   subnetPrefix: '10.20.20.0/24'
 }
 
-var skuName = 'RS0'
-var skuTier = 'Standard'
+/*var skuName = 'RS0'
+var skuTier = 'Standard'*/
 var nicName1 = 'ManagementVMNic'
 var networkSecurityGroupName = 'Management-NSG'
 var networkSecurityGroupName1 = 'App-NSG'
-var osDiskType = 'Standard_LRS'
-var networkInterfaceName = '${vmName1}NetInt'
+var osDiskType = 'StandardSSD_LRS'
+var networkInterfaceName = '${vmName1}VMNic'
 var linuxConfiguration = {
   disablePasswordAuthentication: true
   ssh: {
@@ -191,13 +201,19 @@ resource storageaccount 'Microsoft.Storage/storageAccounts@2021-08-01'= {
     accessTier: 'Hot'
     supportsHttpsTrafficOnly: true
     minimumTlsVersion: 'TLS1_2'
-    
-  }
+      encryption: {
+        keySource:'Microsoft.Storage'  // change to keyvault
+      services:{
+        blob: {
+          enabled: blobEncryptionEnabled
+        }
+      }
+    }
+    }
 }
 
 
-
-resource keyvault 'Microsoft.KeyVault/vaults@2021-11-01-preview' = {
+/*resource keyvault 'Microsoft.KeyVault/vaults@2021-11-01-preview' = {
   name: vaultName
   location:location
   properties: {
@@ -234,6 +250,7 @@ resource key 'Microsoft.KeyVault/vaults/keys@2021-11-01-preview' = {
   }
 }
 
+
 resource secret 'Microsoft.KeyVault/vaults/secrets@2021-11-01-preview'= {
   name: '${keyvault.name}/${secretName}'
   properties: {
@@ -241,10 +258,10 @@ resource secret 'Microsoft.KeyVault/vaults/secrets@2021-11-01-preview'= {
   }
 }
 
-output proxKey object = key
+output proxKey object = key */
 
-resource recoverServicesVault 'Microsoft.RecoveryServices/vaults@2021-11-01-preview' = {
-  name: vaultName
+/*resource recoverServicesVault 'Microsoft.RecoveryServices/vaults@2021-11-01-preview' = {
+  name: vaultName1
   location: location
   sku: {
     name: skuName
@@ -274,7 +291,7 @@ resource backupPolicy 'Microsoft.RecoveryServices/vaults/backupPolicies@2021-12-
     }
     
   }
-}
+}*/
  
 resource managementvnet 'Microsoft.Network/virtualNetworks@2021-05-01' = {
   name: vnet1Name
@@ -289,7 +306,30 @@ resource managementvnet 'Microsoft.Network/virtualNetworks@2021-05-01' = {
       {
         name: vnet1Config.subnetName
         properties: {
+          privateEndpointNetworkPolicies: 'Enabled'
+          privateLinkServiceNetworkPolicies: 'Enabled'
           addressPrefix: vnet1Config.subnetPrefix
+          networkSecurityGroup: { 
+            id: securityGroup.id
+            // properties: {
+            //   securityRules: [
+            //     {
+            //       properties: {
+            //         direction: 'Inbound'
+            //         protocol: '*'
+            //         access: 'Allow'
+            //       }
+            //     }
+            //     {
+            //       properties: {
+            //         direction: 'Outbound'
+            //         protocol: '*'
+            //         access: 'Allow'
+            //       }
+            //     }
+            //   ]
+            // }
+          }
         }
       }
     ]
@@ -314,16 +354,39 @@ resource Appvnet 'Microsoft.Network/virtualNetworks@2021-05-01' = {
   name: vnet2Name
   location: location
   properties: {
-    addressSpace: {
+      addressSpace: {
       addressPrefixes: [
         vnet2Config.addressSpacePrefix
       ]
     }
     subnets: [
       {
-        name: vnet2Config.subnetName
+        name: vnet2Config.subnetName1
         properties: {
+          privateEndpointNetworkPolicies: 'Enabled'
+          privateLinkServiceNetworkPolicies: 'Enabled'
           addressPrefix: vnet2Config.subnetPrefix
+          networkSecurityGroup: {
+            id: nsg.id
+            // properties: {
+            //   securityRules: [
+            //     {
+            //       properties: {
+            //         direction: 'Inbound'
+            //         protocol: '*'
+            //         access: 'Allow'
+            //       }
+            //     }
+            //     {
+            //       properties: {
+            //         direction: 'Outbound'
+            //         protocol: '*'
+            //         access: 'Allow'
+            //       }
+            //     }
+            //   ]
+            // }
+          }
         }
       }
     ]
@@ -366,10 +429,10 @@ resource securityGroup 'Microsoft.Network/networkSecurityGroups@2021-05-01' = {
       {
         name: 'default-allow-3389'
         properties:{
+          priority: 1000
           direction: 'Inbound'
           access: 'Allow'
           protocol: 'Tcp'
-          destinationPortRange: '3389'
           destinationPortRanges:[
             '3389'
             '22'
@@ -391,12 +454,12 @@ resource nic 'Microsoft.Network/networkInterfaces@2021-05-01' = {
       {
         name: 'ipconfig1'
         properties: {
-        privateIPAllocationMethod: 'Static'
+        privateIPAllocationMethod: 'Dynamic'
         publicIPAddress: {
           id: pip.id
         }
         subnet: {
-          id: managementvnet.id
+          id: managementvnet.properties.subnets[0].id  // change back to managementvnet.id if needed
         }
       }
      }
@@ -407,7 +470,7 @@ resource nic 'Microsoft.Network/networkInterfaces@2021-05-01' = {
   }
 }
 
-resource vm 'Microsoft.Compute/virtualMachines@2021-11-01' = {
+resource vmWindows 'Microsoft.Compute/virtualMachines@2021-11-01' = {
   name: vmName
   location: location
   properties: {
@@ -434,7 +497,7 @@ resource vm 'Microsoft.Compute/virtualMachines@2021-11-01' = {
       }
       dataDisks: [
         {
-          diskSizeGB: 1023 // change 
+          diskSizeGB: 100 // change 
           lun: 0
           createOption: 'Empty'
         }
@@ -456,6 +519,7 @@ resource vm 'Microsoft.Compute/virtualMachines@2021-11-01' = {
   }
 }
 
+
 output hostname string = pip.properties.dnsSettings.fqdn
 
 resource niclinux 'Microsoft.Network/networkInterfaces@2020-06-01' = {
@@ -467,7 +531,7 @@ resource niclinux 'Microsoft.Network/networkInterfaces@2020-06-01' = {
         name: 'ipconfig1'
         properties: {
           subnet: {
-            id: Appvnet.id
+            id: Appvnet.properties.subnets[0].id // change back to appvnet.id if needed
           }
           privateIPAllocationMethod: 'Dynamic'
           publicIPAddress: {
@@ -497,7 +561,6 @@ resource nsg 'Microsoft.Network/networkSecurityGroups@2020-06-01' = {
           sourceAddressPrefix: '*'
           sourcePortRange: '*'
           destinationAddressPrefix: '*'
-          destinationPortRange: '22'
           destinationPortRanges: [
             '22'
             '443'
@@ -517,7 +580,7 @@ resource piplinux 'Microsoft.Network/publicIPAddresses@2021-05-01' = {
   properties: {
     publicIPAllocationMethod: publicIPAllocationMethod
     dnsSettings: {
-      domainNameLabel: dnsLabelPrefix
+      domainNameLabel: dnsLabelPrefix1
     }
   }
 }
@@ -533,12 +596,13 @@ resource vmlinux 'Microsoft.Compute/virtualMachines@2020-06-01' = {
       osDisk: {
         createOption: 'FromImage'
         managedDisk: {
-          storageAccountType: osDiskType
+        storageAccountType: osDiskType
         }
       }
+    
       imageReference: {
         publisher: 'Canonical'
-        offer: 'UbuntuServer'
+        offer: '0001-com-ubuntu-server-focal'
         sku: ubuntuOSVersion
         version: 'latest'
       }

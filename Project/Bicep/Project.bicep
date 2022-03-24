@@ -3,7 +3,7 @@ param location string = resourceGroup().location
 @maxLength(24)
 param storageAccountName string = toLower('storacc${uniqueString(resourceGroup().id)}')
 param vaultName1 string = 'recovery${uniqueString(resourceGroup().id)}'
-param vaultName string = 'keyVault5${uniqueString(resourceGroup().id)}' // change everytime for testing
+param vaultName string = 'keyVault15${uniqueString(resourceGroup().id)}' // change everytime for testing
 /* param sku string = 'Standard' */
 param tenant string = subscription().tenantId  //'de60b253-74bd-4365-b598-b9e55a2b208d' // replace if needed tenantId
 /*param accessPolicies array = [
@@ -146,7 +146,7 @@ var protec_container_admin_win = 'iaasvmcontainer;iaasvmcontainerv2;${resourceGr
 var protec_Item_admin_windows = 'vm;iaasvmcontainerv2;${resourceGroup().name};${vmName}'
 
 var script64 = loadFileAsBase64('./scripts/webserver.sh') 
-param store_name string = 'stvm${uniqueString(resourceGroup().id)}'
+param accpol string = 'add'
 param utcValue string = utcNow()
 param apachefile string = 'zscript.sh'
 //param pubkey string = ''
@@ -167,7 +167,7 @@ resource storageaccount 'Microsoft.Storage/storageAccounts@2021-08-01' = {
   location: location
   kind: 'StorageV2'
   identity: {
-    type: 'UserAssigned'
+    type: 'UserAssigned' 
     userAssignedIdentities: {
       '${MAN_ID.id}': {}
     }
@@ -176,6 +176,13 @@ resource storageaccount 'Microsoft.Storage/storageAccounts@2021-08-01' = {
     name: 'Standard_LRS'
   } 
   properties: {
+    networkAcls: {
+      bypass: 'AzureServices'
+      virtualNetworkRules: []
+      ipRules: []
+      defaultAction: 'Allow'
+    }
+
     defaultToOAuthAuthentication: false
     allowCrossTenantReplication: false
     allowBlobPublicAccess: false
@@ -193,6 +200,7 @@ resource storageaccount 'Microsoft.Storage/storageAccounts@2021-08-01' = {
       services: {
         blob: {
           enabled: true
+          keyType: 'Account'
         }
       }
     }
@@ -204,7 +212,7 @@ resource BLOB 'Microsoft.Storage/storageAccounts/blobServices@2021-08-01' = {
   parent: storageaccount
   properties: {
     containerDeleteRetentionPolicy: {
-      days: 30
+      days: 7
       enabled: true
     }
     changeFeed: {
@@ -228,19 +236,19 @@ resource BLOB_CON 'Microsoft.Storage/storageAccounts/blobServices/containers@202
   }
 }
 
-resource keyvault 'Microsoft.KeyVault/vaults@2021-06-01-preview' = {
+resource keyvault 'Microsoft.KeyVault/vaults@2021-11-01-preview' = {
   name: vaultName
   location: location
   properties: {
     networkAcls: {
       defaultAction: 'Allow'
-      bypass: 'AzureServices'
+      bypass: 'AzureServices'  
     }
     enabledForDeployment: true
     enabledForTemplateDeployment: true
     enabledForDiskEncryption: true
     enableSoftDelete: true
-    enablePurgeProtection: true  // changed from true
+    enablePurgeProtection: true  
     softDeleteRetentionInDays: 7
     tenantId: tenant
     accessPolicies: [
@@ -309,13 +317,13 @@ resource MAN_ID 'Microsoft.ManagedIdentity/userAssignedIdentities@2018-11-30' = 
 }
 
 resource ACCES_POL 'Microsoft.KeyVault/vaults/accessPolicies@2021-10-01' = { 
-  name:  'add'
+  name:  accpol
   parent: keyvault
   properties: {
     accessPolicies:[
       {
         tenantId: tenant    //'de60b253-74bd-4365-b598-b9e55a2b208d'
-        objectId: DISK_ENCRYPT_SET.identity.principalId
+        objectId:  DISK_ENCRYPT_SET.identity.principalId  
         permissions: {
           keys: [
             'get'
@@ -456,7 +464,7 @@ resource DEPLOY_SCRIPT 'Microsoft.Resources/deploymentScripts@2020-10-01' = {
      environmentVariables: [
        {
          name: 'AZURE_STORAGE_ACCOUNT'
-         value: store_name
+         value:  storageAccountName   //store_name
        }
        {
          name: 'AZURE_STORAGE_KEY'
@@ -476,7 +484,7 @@ resource DISK_ENCRYPT_SET 'Microsoft.Compute/diskEncryptionSets@2021-08-01' = {
   name: DISKencryptionsetname
   location:location
   identity: {
-    type:'SystemAssigned'
+    type:'SystemAssigned' 
   }
   properties: {
     rotationToLatestKeyVersionEnabled: true

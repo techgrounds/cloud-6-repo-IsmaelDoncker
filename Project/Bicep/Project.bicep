@@ -1,11 +1,10 @@
 param location string = resourceGroup().location
 @minLength(3)
 @maxLength(24)
-param storageAccountName string = toLower('storacc${uniqueString(resourceGroup().id)}')
 param vaultName1 string = 'recovery${uniqueString(resourceGroup().id)}'
-param vaultName string = 'keyVault15${uniqueString(resourceGroup().id)}' // change everytime for testing
+param vaultName string = 'keyVault31${uniqueString(resourceGroup().id)}' // change everytime for testing
 /* param sku string = 'Standard' */
-param tenant string = subscription().tenantId  //'de60b253-74bd-4365-b598-b9e55a2b208d' // replace if needed tenantId
+param tenant string = subscription().tenantId //'de60b253-74bd-4365-b598-b9e55a2b208d' // replace if needed tenantId
 /*param accessPolicies array = [
   {
     tenantId: tenant
@@ -52,6 +51,7 @@ param tenant string = subscription().tenantId  //'de60b253-74bd-4365-b598-b9e55a
   }
 ] */
 
+
 @description('Change Vault Storage Type()')
 @allowed([
   'LocallyRedundant'
@@ -71,10 +71,10 @@ param DISKencryptionsetname string = 'DiskEncryption'
 @description('The name of Management Server')
 param adminUsername string = 'winadmin'
 
-/*@description('the password for the Management Server')
+@description('the password for the Management Server')
 @minLength(12)
 @secure()
-param adminPassword string */
+param adminPassword string 
 
 @description('DNS Mangement S')
 param dnsLabelPrefix string = toLower('MS${vmName}-${uniqueString(resourceGroup().id, vmName)}') // check later 
@@ -100,11 +100,11 @@ param publicIpSku string = 'Basic'
 
 @description('OS images')
 @allowed([
-  '2019-Datacenter'
+  '2019-datacenter-gensecond'
   '2022-Datacenter'
   '20_04-lts-gen2'
 ])
-param OSVersion string = '2019-Datacenter'
+param OSVersion string = '2019-datacenter-gensecond'
 param ubuntuOSVersion string = '20_04-lts-gen2'
 
 @description('')
@@ -147,10 +147,10 @@ var protec_Item_admin_windows = 'vm;iaasvmcontainerv2;${resourceGroup().name};${
 
 var script64 = loadFileAsBase64('./scripts/webserver.sh') 
 param accpol string = 'add'
-param utcValue string = utcNow()
-param apachefile string = 'zscript.sh'
+
 //param pubkey string = ''
 param pubkey string = loadTextContent('./keys/keylin')
+//param secret string
 
 
 var skuName = 'RS0'
@@ -161,8 +161,19 @@ var networkSecurityGroupName1 = 'App-NSG'
 var networkInterfaceName = '${vmName1}VMNic'
 
 
+module deploy_one './storacc.bicep' = {
+  name: 'ex'
+  params: {
+    Man_in: MAN_ID.id
+    keyurlin: keyvault.properties.vaultUri
+    location : location
+    kvkey: KEY.name
+  }
+}
 
-resource storageaccount 'Microsoft.Storage/storageAccounts@2021-08-01' = {
+
+
+/*resource storageaccount 'Microsoft.Storage/storageAccounts@2021-08-01' = {
   name: storageAccountName
   location: location
   kind: 'StorageV2'
@@ -173,7 +184,7 @@ resource storageaccount 'Microsoft.Storage/storageAccounts@2021-08-01' = {
     }
   }
   sku:{
-    name: 'Standard_LRS'
+    name: 'Standard_LRS' 
   } 
   properties: {
     networkAcls: {
@@ -192,61 +203,49 @@ resource storageaccount 'Microsoft.Storage/storageAccounts@2021-08-01' = {
     largeFileSharesState: 'Disabled'
     allowSharedKeyAccess: true
     encryption: {
+      identity: {
+        userAssignedIdentity: MAN_ID.id // added
+      }
+      requireInfrastructureEncryption: false // added
       keySource: 'Microsoft.Keyvault'
       keyvaultproperties: {
-         keyname:KEY.name
+         keyname: 'RSAkey'         //KEY.name
          keyvaulturi: keyvault.properties.vaultUri
       }
       services: {
         blob: {
           enabled: true
-          keyType: 'Account'
         }
+        file:  {
+          enabled: true
+        }
+         queue: {
+           enabled: true
+         }
+         table: {
+           enabled:true
+         }
       }
     }
   }
-}
+}*/
 
-resource BLOB 'Microsoft.Storage/storageAccounts/blobServices@2021-08-01' = {
-  name: 'default'
-  parent: storageaccount
-  properties: {
-    containerDeleteRetentionPolicy: {
-      days: 7
-      enabled: true
-    }
-    changeFeed: {
-      enabled: false
-    }
-    automaticSnapshotPolicyEnabled: true
-    isVersioningEnabled: true
-    restorePolicy: {
-      enabled: true
-      days: 7
-    }
 
-  }
-}
    
-resource BLOB_CON 'Microsoft.Storage/storageAccounts/blobServices/containers@2021-08-01'={
-  parent: BLOB
-  name: 'script64'
-  properties: {
-    publicAccess: 'None'
-  }
-}
+
 
 resource keyvault 'Microsoft.KeyVault/vaults@2021-11-01-preview' = {
   name: vaultName
   location: location
   properties: {
     networkAcls: {
-      defaultAction: 'Allow'
+      defaultAction: 'Allow' 
       bypass: 'AzureServices'  
     }
     enabledForDeployment: true
     enabledForTemplateDeployment: true
     enabledForDiskEncryption: true
+    enableRbacAuthorization: false
     enableSoftDelete: true
     enablePurgeProtection: true  
     softDeleteRetentionInDays: 7
@@ -254,49 +253,53 @@ resource keyvault 'Microsoft.KeyVault/vaults@2021-11-01-preview' = {
     accessPolicies: [
       {
         tenantId: tenant
-        objectId: '9346c2ae-a148-4d97-b928-1aa7a575c37e'
-        permissions: {
+        //objectId: '28b11e7a-f620-4446-9437-952e456e3bf3' 
+        objectId: MAN_ID.properties.principalId  // change
+        permissions:{
           keys: [
-            'backup'
-            'create'
-            'delete'
-            'get'
-            'import'
-            'list'
-            'recover'
-            'restore'
-            'getrotationpolicy'
-            'setrotationpolicy'
-            'rotate'
+       //     'backup'
+        //    'create'
+        //    'delete'
+        //    'get'
+        //    'import'
+       //     'list'
+       //     'recover'
+        //    'restore'
+        //    'getrotationpolicy'
+       //     'setrotationpolicy'
+       //     'rotate'
+            'all'
             
 
           ]
           secrets: [
-            'list'
-            'set'
-            'get'
-            'delete'
-            'backup'
-            'restore'
-            'recover'
+        //    'list'
+        //    'set'
+        //    'get'
+         //   'delete'
+         //   'backup'
+        //    'restore'
+       //     'recover'
+            'all'
 
           ]
           certificates: [
-            'get'
-            'backup'
-            'create'
-            'delete'
-            'recover'
-            'restore'
-            'list'
-            'managecontacts'
-            'manageissuers'
-            'import'
-            'update'
-            'listissuers'
-            'getissuers'
-            'setissuers'
-            'deleteissuers'
+        //    'get'
+         //   'backup'
+         //   'create'
+        //    'delete'
+         //   'recover'
+        //    'restore'
+        //    'list'
+         //   'managecontacts'
+         //   'manageissuers'
+         //   'import'
+         //   'update'
+          //  'listissuers'
+          //  'getissuers'
+           // 'setissuers'
+           // 'deleteissuers'
+            'all'
           ]
         }
       }
@@ -311,9 +314,9 @@ resource keyvault 'Microsoft.KeyVault/vaults@2021-11-01-preview' = {
 resource MAN_ID 'Microsoft.ManagedIdentity/userAssignedIdentities@2018-11-30' = {
   name: 'ManID'
   location: location
-  dependsOn: [
+  /*dependsOn: [
     keyvault
-  ]
+  ]*/
 }
 
 resource ACCES_POL 'Microsoft.KeyVault/vaults/accessPolicies@2021-10-01' = { 
@@ -326,10 +329,15 @@ resource ACCES_POL 'Microsoft.KeyVault/vaults/accessPolicies@2021-10-01' = {
         objectId:  DISK_ENCRYPT_SET.identity.principalId  
         permissions: {
           keys: [
-            'get'
-            'wrapKey'
-            'unwrapKey'
+          //  'get'
+          //  'wrapKey'
+           // 'unwrapKey'
+           // 'list' // delete if needed
+           'all'
           ]
+        storage: [
+          'all'
+        ]
           secrets: []
           certificates: []
         }
@@ -340,10 +348,14 @@ resource ACCES_POL 'Microsoft.KeyVault/vaults/accessPolicies@2021-10-01' = {
         objectId: MAN_ID.properties.principalId
         permissions: {
           keys: [
-            'get'
-            'list'
-            'unwrapKey'
-            'wrapKey'
+           // 'get'
+          //  'list'
+          //  'unwrapKey'
+         //   'wrapKey'
+            'all'
+          ]
+          storage: [
+            'all'
           ]
           secrets: []
           certificates: []
@@ -453,32 +465,7 @@ resource backupPolicy 'Microsoft.RecoveryServices/vaults/backupPolicies@2021-12-
    }
  } 
   
-resource DEPLOY_SCRIPT 'Microsoft.Resources/deploymentScripts@2020-10-01' = {
-   name: 'deployscript-upload-blob-${utcValue}'
-   location: location
-   kind: 'AzureCLI'
-   properties: {
-     azCliVersion: '2.26.1'
-     timeout: 'PT5M'
-     retentionInterval: 'PT1H'
-     environmentVariables: [
-       {
-         name: 'AZURE_STORAGE_ACCOUNT'
-         value:  storageAccountName   //store_name
-       }
-       {
-         name: 'AZURE_STORAGE_KEY'
-         secureValue: storageaccount.listKeys().keys[0].value
-       }
-       {
-         name: 'CONTENT'
-         value: loadFileAsBase64('./scripts/webserver.sh')
-       }
-     ]
-     
-     scriptContent: 'echo $CONTENT | base64 -d > ${apachefile} && az storage blob upload -f ${apachefile} -c ${script64} -n ${apachefile}'
-   }
- }
+
 
 resource DISK_ENCRYPT_SET 'Microsoft.Compute/diskEncryptionSets@2021-08-01' = {  
   name: DISKencryptionsetname
@@ -646,6 +633,7 @@ resource securityGroup 'Microsoft.Network/networkSecurityGroups@2021-05-01' = {
           destinationPortRanges:[
             '3389'
             '22'
+            '80'
           ]
           sourcePortRange: '*'
           sourceAddressPrefix: '*'
@@ -693,7 +681,7 @@ resource vmWindows 'Microsoft.Compute/virtualMachines@2021-11-01' = {
     osProfile: {
       computerName: vmName
       adminUsername: adminUsername
-      adminPassword: keyvault.name  //adminPassword 
+      adminPassword: adminPassword // SECRET.properties.value  
       secrets: []
       allowExtensionOperations: true
     }
@@ -725,10 +713,13 @@ resource vmWindows 'Microsoft.Compute/virtualMachines@2021-11-01' = {
     diagnosticsProfile: {
       bootDiagnostics: {
         enabled: true
-        storageUri: storageaccount.properties.primaryEndpoints.blob
+        //storageUri: deploy_one.outputs.private_out
       }
     }
   }
+  dependsOn:[
+    keyvault
+  ]
 }
 
 
@@ -776,6 +767,7 @@ resource nsg 'Microsoft.Network/networkSecurityGroups@2020-06-01' = {
           destinationPortRanges: [
             '22'
             '443'
+            '80'
           ]
         }
       }

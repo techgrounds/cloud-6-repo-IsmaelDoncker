@@ -2,7 +2,7 @@ param location string = resourceGroup().location
 @minLength(3)
 @maxLength(24)
 param vaultName1 string = 'recovery${uniqueString(resourceGroup().id)}'
-param vaultName string = 'keyVault${uniqueString(resourceGroup().id)}' // change everytime for testing
+param vaultName string = 'keyVault21${uniqueString(resourceGroup().id)}' // change everytime for testing
 /* param sku string = 'Standard' */
 param tenant string = subscription().tenantId //'de60b253-74bd-4365-b598-b9e55a2b208d' // replace if needed tenantId
 
@@ -21,8 +21,8 @@ param policyName string = 'mypolicy${uniqueString(resourceGroup().id)}'
 
 param DISKencryptionsetname string = 'DiskEncryption'
 
-//@description('gatewayname')
-//param appgateway string = 'appgateway1'
+@description('gatewayname')
+param appgatewayname string = 'appgateway'
 
 @description('The name of Management Server')
 param adminUsername string = 'winadmin'
@@ -55,10 +55,10 @@ param publicIPName2 string = 'AppGatewayIP'
   'Static'
   'Dynamic'
 ])
-param publicIPAllocationMethod string = 'Dynamic'
+param publicIPAllocationMethod string = 'Static'
 
 @description('')
-param publicIpSku string = 'Basic'
+param publicIpSku string = 'Standard'//'Basic'
 
 @description('OS images')
 @allowed([
@@ -98,20 +98,20 @@ var vnet1Config = {
 var vnet2Config = {
   addressSpacePrefix: '10.20.20.0/24'
   subnetName1: 'subnet2'
-  subnetPrefix: '10.20.20.0/24'
+  subnetPrefix: '10.20.20.0/25'
 }
 
 var vnet3config = {
-  addressSpacePrefix: '10.20.20.1/24'
+  addressSpacePrefix: '10.20.20.0/24'
   subnetName3: 'gwsubnet3'
-  subnetPrefix: '10.20.20.1/24'
+  subnetPrefix: '10.20.20.128/25'
 }
 
 var backupFabric = 'Azure'
 var protec_container_app_linux = 'iaasvmcontainer;iaasvmcontainerv2;${resourceGroup().name};${vmName1}'
 var protec_Item_app_linux = 'vm;iaasvmcontainerv2;${resourceGroup().name};${vmName1}'
-var protec_container_admin_win = 'iaasvmcontainer;iaasvmcontainerv2;${resourceGroup().name};${vmName}'
-var protec_Item_admin_windows = 'vm;iaasvmcontainerv2;${resourceGroup().name};${vmName}'
+//var protec_container_admin_win = 'iaasvmcontainer;iaasvmcontainerv2;${resourceGroup().name};${vmName}'
+//var protec_Item_admin_windows = 'vm;iaasvmcontainerv2;${resourceGroup().name};${vmName}'
 
 var script64 = loadFileAsBase64('./scripts/webserver.sh') 
 param accpol string = 'add'
@@ -130,7 +130,7 @@ var networkInterfaceName = '${vmName1}VMNic'
 
 
 module deploy_one './storacc.bicep' = {
-  name: 'ex'
+  name: 'storex'
   params: {
     Man_in: MAN_ID.id
     keyurlin: keyvault.properties.vaultUri
@@ -424,14 +424,14 @@ resource backupPolicy 'Microsoft.RecoveryServices/vaults/backupPolicies@2021-12-
    }
  } 
  
- resource PROTEC_vmWindows 'Microsoft.RecoveryServices/vaults/backupFabrics/protectionContainers/protectedItems@2021-12-01' = {
+ /*resource PROTEC_vmWindows 'Microsoft.RecoveryServices/vaults/backupFabrics/protectionContainers/protectedItems@2021-12-01' = {
    name: '${vaultName1}/${backupFabric}/${protec_container_admin_win}/${protec_Item_admin_windows}' 
    properties: {
      protectedItemType: 'Microsoft.Compute/virtualMachines'
      policyId: backupPolicy.id
      sourceResourceId: vmWindows.id     
    }
- } 
+ } */
   
 
 
@@ -507,6 +507,9 @@ resource Appvnet 'Microsoft.Network/virtualNetworks@2021-05-01' = {
       {
         name: vnet2Config.subnetName1
         properties: {
+          natGateway: {
+            id: natgate.id
+          }
           privateEndpointNetworkPolicies: 'Enabled'
           privateLinkServiceNetworkPolicies: 'Enabled'
           addressPrefix: vnet2Config.subnetPrefix
@@ -515,22 +518,42 @@ resource Appvnet 'Microsoft.Network/virtualNetworks@2021-05-01' = {
           }
         }
       }
+      {
+        name: vnet3config.subnetName3
+        properties:{
+          privateEndpointNetworkPolicies: 'Enabled'
+          privateLinkServiceNetworkPolicies: 'Enabled'
+          addressPrefix: vnet3config.subnetPrefix
+          networkSecurityGroup: {
+            id: nsg.id
+          }
+        } 
+      }
     ]
   }
 }
 
-resource appgatesub 'Microsoft.Network/virtualNetworks/subnets@2021-05-01' = {
+/*resource appgatesub 'Microsoft.Network/virtualNetworks/subnets@2021-05-01'  =  {
   name: 'appgatesub'
   parent: Appvnet
   properties: {
-    addressPrefix: vnet3config.subnetPrefix
+    addressPrefix: '10.20.20.128/25' //vnet3config.addressSpacePrefix 
     privateEndpointNetworkPolicies: 'Enabled'
     privateLinkServiceNetworkPolicies: 'Enabled'
     networkSecurityGroup: {
        id: nsg.id
     }
+    serviceEndpoints: [
+      {
+        service: 'Microsoft.keyvault'
+        locations: [
+          '*'
+        ]
+      }
+    ]
+    delegations: []
   }
-}
+}*/
 
 resource natgate 'Microsoft.Network/natGateways@2021-05-01' = {
   name: 'natgatew'
@@ -595,6 +618,7 @@ resource securityGroup 'Microsoft.Network/networkSecurityGroups@2021-05-01' = {
             '3389'
             '22'
             '80'
+            '65200 - 65535'
           ]
           sourcePortRange: '*'
           sourceAddressPrefix: '*'
@@ -680,6 +704,7 @@ resource vmWindows 'Microsoft.Compute/virtualMachines@2021-11-01' = {
   }
   dependsOn:[
     keyvault
+    managementvnet
   ]
 }
 
@@ -692,15 +717,15 @@ resource niclinux 'Microsoft.Network/networkInterfaces@2020-06-01' = {
   properties: {
     ipConfigurations: [
       {
-        name: 'ipconfig1'
+        name: 'ipconfig2'
         properties: {
           subnet: {
             id: Appvnet.properties.subnets[0].id  //Appvnet.properties.subnets[0].id // change back to appvnet.id if needed
           }
           privateIPAllocationMethod: 'Dynamic'
-          publicIPAddress: {
+          /*publicIPAddress: {
             id: piplinux.id
-          }
+          }*/
         }
       }
     ]
@@ -718,17 +743,18 @@ resource nsg 'Microsoft.Network/networkSecurityGroups@2020-06-01' = {
       {
         name: 'SSH'
         properties: {
-          priority: 1000
+          priority: 120
           protocol: 'Tcp'
           access: 'Allow'
           direction: 'Inbound'
-          sourceAddressPrefix: '*'
+          sourceAddressPrefix: '*' 
           sourcePortRange: '*'
           destinationAddressPrefix: '*'
           destinationPortRanges: [
             '22'
             '443'
             '80'
+            '65200 - 65535'
           ]
         }
       }
@@ -772,20 +798,24 @@ resource pipgateway 'Microsoft.Network/publicIPAddresses@2021-05-01' = {
 }
 
 resource applicationGateway 'Microsoft.Network/applicationGateways@2020-11-01' = {
-  name: 'appgateway'
+  name: appgatewayname
   location: location
   properties: {
     sku: {
       name: 'Standard_v2'
       tier: 'Standard_v2'
-      capacity: 1
+      //capacity: 1
+    }
+    autoscaleConfiguration:{
+      minCapacity: 1
+      maxCapacity: 3
     }
     gatewayIPConfigurations: [
       {
         name: 'frontendIp'//'gatewayip'
         properties: {
           subnet: {
-            id: appgatesub.id //Appvnet.properties.subnets[0].id //'id'
+            id: Appvnet.properties.subnets[1].id //'id'appgatesub.id 
           }
         }
       }
@@ -818,6 +848,12 @@ resource applicationGateway 'Microsoft.Network/applicationGateways@2020-11-01' =
           port: 443 //80
         }
       }
+      {
+        name: 'httpPort'
+        properties: {
+          port: 80
+        }
+      }
     ]
     backendAddressPools: [
       {
@@ -838,6 +874,8 @@ resource applicationGateway 'Microsoft.Network/applicationGateways@2020-11-01' =
             enabled: false
             drainTimeoutInSec: 1
           }
+          pickHostNameFromBackendAddress:false
+          requestTimeout: 30
         }
       }
     ]
@@ -846,16 +884,16 @@ resource applicationGateway 'Microsoft.Network/applicationGateways@2020-11-01' =
         name: 'appgatewaylistener'
         properties: {
           frontendIPConfiguration: {
-            id: resourceId('Microsoft.Network/applicationGateways/frontendIPConfigurations/','appgateway', 'frontendIp')//'id'
+            id: resourceId('Microsoft.Network/applicationGateways/frontendIPConfigurations',appgatewayname, 'frontendIp')//'id'
           }
           frontendPort: {
-            id: resourceId('Microsoft.Network/applicationGateways/frontendPorts/', 'appgateway', 'appGatewayFrontendPort')//'id'
+            id: resourceId('Microsoft.Network/applicationGateways/frontendPorts', appgatewayname, 'appGatewayFrontendPort')//'id'
           }
-          protocol: 'Http'
+          protocol: 'Https'
           sslCertificate: { 
-            id: resourceId('Microsoft.Network/applicationGateways/sslCertificates', 'appgateway', 'mycert')//null add cert
+            id: resourceId('Microsoft.Network/applicationGateways/sslCertificates', appgatewayname, 'mycert')//null add cert
         }
-        hostName: null // []
+        hostNames: []
         requireServerNameIndication: false
       }
     }
@@ -863,10 +901,10 @@ resource applicationGateway 'Microsoft.Network/applicationGateways@2020-11-01' =
         name: 'cmListener'
         properties: {
           frontendIPConfiguration: {
-            id: resourceId('Microsoft.Network/applicationGateways/frontendIPConfigurations/', 'appgateway', 'frontedIP')
+            id: resourceId('Microsoft.Network/applicationGateways/frontendIPConfigurations', appgatewayname, 'frontendIp')
           }
           frontendPort: {
-            id: resourceId('Microsoft.Network/applicationGateways/frontendPorts/', 'appgateway', 'httpPort')
+            id: resourceId('Microsoft.Network/applicationGateways/frontendPorts', appgatewayname,'httpPort' )//'appgatewayfrontendport'
           }
           protocol: 'Http'
           hostNames: []
@@ -881,13 +919,13 @@ resource applicationGateway 'Microsoft.Network/applicationGateways@2020-11-01' =
         properties: {
           ruleType: 'Basic'
           httpListener: {
-            id: resourceId('Microsoft.Network/applicationGateways/httpListeners/', 'appgateway', 'cmListener')
+            id: resourceId('Microsoft.Network/applicationGateways/httpListeners', appgatewayname, 'appgatewaylistener')
           }
           backendAddressPool: {
-            id: resourceId('Microsoft.Network/applicationGateways/backendAddressPools/', 'appgateway', 'appgatewaybackendpool')
+            id: resourceId('Microsoft.Network/applicationGateways/backendAddressPools', appgatewayname, 'appgatewaybackendpool')
           }
           backendHttpSettings: {
-            id: resourceId('Microsoft.Network/applicationGateways/backendHttpSettingsCollection/', 'appgateway', 'backendsettings')
+            id: resourceId('Microsoft.Network/applicationGateways/backendHttpSettingsCollection', appgatewayname, 'backendsettings')
           }
         }
       }
@@ -896,10 +934,10 @@ resource applicationGateway 'Microsoft.Network/applicationGateways@2020-11-01' =
         properties: {
           ruleType: 'Basic'
           httpListener: {
-            id: resourceId('Microsoft.Network/applicationGateways/httpListeners/', 'appgateway', 'cmListener')
+            id: resourceId('Microsoft.Network/applicationGateways/httpListeners', appgatewayname, 'cmListener')
           }
           redirectConfiguration: {
-            id: resourceId('Microsoft.Network/applicationGateways/redirectConfigurations/', 'appgateway', 'httpToHttps')
+            id: resourceId('Microsoft.Network/applicationGateways/redirectConfigurations', appgatewayname, 'httpToHttps')
           }
         }
       }
@@ -912,29 +950,26 @@ resource applicationGateway 'Microsoft.Network/applicationGateways@2020-11-01' =
         properties: {
           redirectType: 'Permanent'
           targetListener: {
-            id: resourceId('Microsoft.Network/applicationGateways/httpListeners/', 'appgateway', 'cmListener')
+            id: resourceId('Microsoft.Network/applicationGateways/httpListeners', appgatewayname, 'appgatewaylistener')
           }
           includePath: true
           includeQueryString: true
           requestRoutingRules: [
             {
-              id: resourceId('Microsoft.Network/applicationGateways/requestRoutingRules/', 'appgateway', 'rule2')
+              id: resourceId('Microsoft.Network/applicationGateways/requestRoutingRules', appgatewayname, 'rule2')
             }
           ]
         }
       }
     ]
   }
-  dependsOn: [
-   Appvnet
-  ]
 }
 
 resource webappAutoScaleSettings 'Microsoft.Insights/autoscalesettings@2021-05-01-preview' = {
   name: 'autoscale-settings'
   location: location
   properties: {
-    name: 'name'
+    //name: 'name'
     profiles: [
       {
         name: 'set1'
@@ -946,7 +981,7 @@ resource webappAutoScaleSettings 'Microsoft.Insights/autoscalesettings@2021-05-0
         rules: [
           {
             metricTrigger: {
-              metricName: 'name'
+              metricName: 'triggerup'
               metricResourceUri: vmlinuxss.id //'metricResourceUri'
               timeGrain: 'PT1M'
               statistic: 'Average'
@@ -964,7 +999,7 @@ resource webappAutoScaleSettings 'Microsoft.Insights/autoscalesettings@2021-05-0
           }
           {
             metricTrigger: {
-              metricName: 'metricName'
+              metricName: 'triggerdown'
               metricResourceUri: vmlinuxss.id//'metricResourceUri'
               timeGrain: 'PT1M'
               statistic: 'Average'
@@ -1026,6 +1061,7 @@ resource vmlinuxss 'Microsoft.Compute/virtualMachineScaleSets@2021-11-01' = {
       dataDisks: []
     }
     osProfile: {
+      computerNamePrefix: vmName1
       adminUsername: adminUsername1
       adminPassword: null
       linuxConfiguration: {
@@ -1099,12 +1135,11 @@ resource vmlinuxss 'Microsoft.Compute/virtualMachineScaleSets@2021-11-01' = {
      ]
     }
   }
-
     platformFaultDomainCount: 1
     automaticRepairsPolicy: {
       enabled: true
-      repairAction:'Reimage'
-      gracePeriod: 'PT45'
+      //repairAction:'Replace'
+      gracePeriod: 'PT10M'
     }
   }
 }
